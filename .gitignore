@@ -1,0 +1,5 @@
+bin/*
+obj/*
+back/*
+.vscode/*
+src/.bak
