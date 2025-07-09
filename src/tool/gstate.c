@@ -1,9 +1,10 @@
-#include "../lib/common.h" /* Manditory before other imports */
-
 #include <stdlib.h>
-#include "state.h"
-#include "app.h"
-#include "../lib/cli.h"
+
+#include "../config.h" /* Manditory in all files */
+#include "../treeroot.h"
+
+#include "gstate.h"
+#include "cli.h"
 
 /*
  * ==================================================
@@ -35,14 +36,14 @@ static GlobalState* GLOBAL_STATE = NULL;
  * ==================================================
  */
 
-void state_setup(Int16 argc, const char** argv) {
+void setupGlobalState(int32_t argc, const char** argv) {
     if (GLOBAL_STATE != NULL) return;
 
     /* Initialize the state in heap */
     GLOBAL_STATE = (GlobalState*)malloc(sizeof(GlobalState));
     if (GLOBAL_STATE == NULL) {
-        app_exitFatal(EXIT_NO_MEM, "Failed to allocate memory");
-        return; /* Unreachable */
+        exitErr_noMem();
+        UNREACHABLE_RETRUN();
     }
 
 
@@ -50,6 +51,7 @@ void state_setup(Int16 argc, const char** argv) {
     GLOBAL_STATE->argc = argc;
     GLOBAL_STATE->argv = argv;
     GLOBAL_STATE->cli = NULL;
+    GLOBAL_STATE->nodeSizes = NULL;
 
     
     /* Setup the cli config */
@@ -57,10 +59,14 @@ void state_setup(Int16 argc, const char** argv) {
         GLOBAL_STATE->argc, 
         GLOBAL_STATE->argv
     );
+
+
+    /* Initialize the node sizes table */
+    GLOBAL_STATE->nodeSizes = hashTable_new(TBL_ITEM_UINT64);
 }
 
 
-void state_teardown() {
+void teardownGlobalState() {
     if (GLOBAL_STATE == NULL) return;
 
 
@@ -71,18 +77,22 @@ void state_teardown() {
     }
 
 
+    /* Destroy the hash table for node sizes */
+    if (GLOBAL_STATE->nodeSizes != NULL) {
+        hashTable_destroy(GLOBAL_STATE->nodeSizes);
+        GLOBAL_STATE->nodeSizes = NULL;
+    }
+
+
     free(GLOBAL_STATE);
     GLOBAL_STATE = NULL;
 }
 
 
-GlobalState* state_getGlobal() {
+GlobalState* getGlobalState() {
     if (GLOBAL_STATE == NULL) {
-        app_exitFatal(
-            EXIT_ACCESS_STATE_BEFOR_INIT,
-            "Attempted to access global state before initialization"
-        );
-        return NULL; /* Unreachable */
+        exitErr_earlyStateAccess();
+        UNREACHABLE_RETRUN(NULL);
     }
 
     return GLOBAL_STATE;

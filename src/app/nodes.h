@@ -1,15 +1,16 @@
-#ifndef treeroot_core_fnode_h
-#define treeroot_core_fnode_h
+#ifndef TREEROOT_SRC_APP_NODES_H
+#define TREEROOT_SRC_APP_NODES_H
 
-#include "../lib/common.h" /* Manditory before other imports */
+#include "../config.h" /* Manditory in all files */
 
-typedef enum fnode_NodeType {
+
+typedef enum treeRoot_NodeType {
     FNODE_FILE,
     FNODE_FOLDER
 } NodeType;
 
 
-typedef struct fnode_FNode {
+typedef struct treeRoot_FNode {
     /**
      * \brief           The type of the node
      */
@@ -21,6 +22,11 @@ typedef struct fnode_FNode {
     char* path;
 
     /**
+     * \brief           The hash of the node's path
+     */
+    unsigned int pathHash;
+
+    /**
      * \brief           The name of the file or folder
      */
     char* name;
@@ -28,33 +34,34 @@ typedef struct fnode_FNode {
     /**
      * \brief           If the node is hidden
      */
-    Bool isHidden;
+    byte_t isHidden;
 
     /**
      * \brief           If the node is a link
      */
-    Bool isLink;
+    byte_t isLink;
 
     /**
      * \brief           Pointer to the parent FNode
      */
-    struct fnode_FNode* parent;
+    struct treeRoot_FNode* parent;
 
     /**
      * \brief           Array of FNode pointers to the child nodes
      */
-    struct fnode_FNode** children;
+    struct treeRoot_FNode** children;
 
     /**
      * \brief           The number of children currently stored
      */
-    UInt16 childrenCount;
+    uint32_t childrenCount;
 
     /**
      * \brief           The max number of children that can be stored
      */
-    UInt16 childrenCapacity;
+    uint32_t childrenCapacity;
 } FNode;
+
 
 
 FNode* fnode_new(const char* path, FNode* parent);
@@ -63,12 +70,13 @@ FNode* fnode_new(const char* path, FNode* parent);
 void fnode_destroy(FNode* fnode);
 
 
-Bool fnode_addChild(FNode* parent, FNode* child);
+byte_t fnode_addChild(FNode* parent, FNode* child);
 
 
-void fnode_print(FNode* node, Int16 depth);
+void fnode_print(FNode* node, int32_t depth);
 
 
-FNode* fnode_getNodeFromPath(const char* path, Int16 maxDepth);
+FNode* fnode_getNodeFromPath(const char* path, int32_t maxDepth);
 
-#endif /* treeroot_core_fnode_h */
+
+#endif /* TREEROOT_SRC_APP_NODES_H */

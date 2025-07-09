@@ -2,9 +2,11 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "../lib/common.h" /* Manditory before other imports */
-#include "fnode.h"
-#include "../lib/platform.h"
+#include "../config.h" /* Manditory in all files */
+
+#include "nodes.h"
+#include "../common/strings.h"
+#include "../common/paths.h"
 
 #ifdef OS_WINDOWS
     #include <windows.h>
@@ -21,7 +23,6 @@
  * ==================================================
  */
 
-/* #define XYZ "ABC" */
 
 /*
  * ==================================================
@@ -29,31 +30,30 @@
  * ==================================================
  */
 
-typedef struct fnode_StackItem {
+typedef struct treeRoot_StackItem {
     FNode* node;
-    Int16 depth;
+    int32_t depth;
 } StackItem;
 
-typedef struct fnode_FNodeStack {
+typedef struct treeRoot_FNodeStack {
     StackItem** nodes;
     StackItem** top;
-    Int16 capacity;
+    int32_t capacity;
 } FNodeStack;
 
-static StackItem* stackItem_new(FNode* node, Int16 depth);
+static StackItem* stackItem_new(FNode* node, int32_t depth);
 
 static FNodeStack* stack_new();
 
 static void stack_destroy(FNodeStack* stack);
 
-static Bool stack_isEmpty(FNodeStack* stack);
+static byte_t stack_isEmpty(FNodeStack* stack);
 
-static void stack_push(FNodeStack* stack, FNode* node, Int16 depth);
+static void stack_push(FNodeStack* stack, FNode* node, int32_t depth);
 
 static StackItem* stack_pop(FNodeStack* stack);
 
-
-static void populateNode(FNode* parent, Int16 maxDepth);
+static void populateNode(FNode* parent, int32_t maxDepth);
 
 
 /*
@@ -62,8 +62,6 @@ static void populateNode(FNode* parent, Int16 maxDepth);
  * ==================================================
  */
 
-/* int magicNumber = 420; */
-
 
 /*
  * ==================================================
@@ -71,7 +69,7 @@ static void populateNode(FNode* parent, Int16 maxDepth);
  * ==================================================
  */
 
-static StackItem* stackItem_new(FNode* node, Int16 depth) {
+static StackItem* stackItem_new(FNode* node, int32_t depth) {
     StackItem* item = NULL;
     
     if (node == NULL) return NULL;
@@ -126,13 +124,13 @@ static void stack_destroy(FNodeStack* stack) {
     free(stack);
 }
 
-static Bool stack_isEmpty(FNodeStack* stack) {
+static byte_t stack_isEmpty(FNodeStack* stack) {
     return stack->top == stack->nodes;
 }
 
-static void stack_push(FNodeStack* stack, FNode* node, Int16 depth) {
+static void stack_push(FNodeStack* stack, FNode* node, int32_t depth) {
     if ((stack->top - stack->nodes) + 1 > stack->capacity) {
-        Int16 count = stack->top - stack->nodes;
+        int32_t count = stack->top - stack->nodes;
         stack->capacity = stack->capacity * ARRAY_GROW_FACTOR;
         stack->nodes = realloc(stack->nodes, sizeof(StackItem*) * stack->capacity);
         stack->top = stack->nodes + count;
@@ -148,7 +146,7 @@ static StackItem* stack_pop(FNodeStack* stack) {
     return *(--stack->top);
 }
 
-static void populateNode(FNode* parent, Int16 maxDepth) {
+static void populateNode(FNode* parent, int32_t maxDepth) {
     FNodeStack* stack = stack_new();
     FNode* childNode = NULL;
 
@@ -162,7 +160,7 @@ static void populateNode(FNode* parent, Int16 maxDepth) {
     while (!stack_isEmpty(stack)) {
         StackItem* item = stack_pop(stack);
         FNode* node = item->node;
-        Int16 depth = item->depth;
+        int32_t depth = item->depth;
 
 #if defined(OS_WINDOWS)
         char path[MAX_PATH_LENGTH];
@@ -186,8 +184,8 @@ static void populateNode(FNode* parent, Int16 maxDepth) {
         do {
             /* Check if the path is an relative item */
             if (
-                STR_EQ(findData.cFileName, ".")
-                || STR_EQ(findData.cFileName, "..")
+                str_equals(findData.cFileName, ".", 1)
+                || str_equals(findData.cFileName, "..", 2)
             ) continue;
 
 
@@ -226,7 +224,6 @@ static void populateNode(FNode* parent, Int16 maxDepth) {
 
 
 FNode* fnode_new(const char* path, FNode* parent) {
-    char nameBuff[MAX_PATH_LENGTH / 2];
     FNode* newNode = NULL;
 
     /* Allocate memory for the node */
@@ -237,36 +234,15 @@ FNode* fnode_new(const char* path, FNode* parent) {
 
 
     /* Initialize default values */
-    newNode->type = (platform_isFile(path) ? FNODE_FILE : FNODE_FOLDER);
-    newNode->path = NULL;
-    newNode->name = NULL;
-    newNode->isHidden = platform_isHidden(path);
-    newNode->isLink = platform_isLink(path);
+    newNode->path = path_normalize(path);
+    newNode->type = (path_isFile(newNode->path) ? FNODE_FILE : FNODE_FOLDER);
+    newNode->name = path_baseName(newNode->path);
+    newNode->isHidden = path_isHidden(newNode->path);
+    newNode->isLink = path_isLink(newNode->path);
     newNode->parent = parent;
     newNode->children = NULL;
     newNode->childrenCount = 0;
     newNode->childrenCapacity = 0;
-
-    
-    /* Copy the string */
-    newNode->path = (char*)malloc(sizeof(char) * strlen(path) + 1);
-    if (newNode->path == NULL) {
-        fnode_destroy(newNode);
-        return NULL;
-    }
-
-    troot_safeStrCpy(newNode->path, path, strlen(path) + 1);
-
-    
-    /* Extract the file name */
-    platform_extractFileName(path, nameBuff);
-    newNode->name = (char*)malloc(sizeof(char) * strlen(nameBuff) + 1);
-    if (newNode->name == NULL) {
-        fnode_destroy(newNode);
-        return NULL;
-    }
-
-    troot_safeStrCpy(newNode->name, nameBuff, strlen(nameBuff) + 1);
 
 
     /* Setup child array if the type is a folder */
@@ -307,7 +283,7 @@ void fnode_destroy(FNode* fnode) {
     }
 
     if (fnode->children != NULL) {
-        UInt16 i = 0;
+        uint32_t i = 0;
         for (i = 0; i < fnode->childrenCount; i++) {
             free(fnode->children[i]);
             fnode->children[i] = NULL;
@@ -321,7 +297,7 @@ void fnode_destroy(FNode* fnode) {
 }
 
 
-Bool fnode_addChild(FNode* parent, FNode* child) {
+byte_t fnode_addChild(FNode* parent, FNode* child) {
     if (parent == NULL) return FALSE;
     if (child == NULL) return FALSE;
     if (parent->children == NULL) return FALSE;
@@ -345,8 +321,8 @@ Bool fnode_addChild(FNode* parent, FNode* child) {
 }
 
 
-void fnode_print(FNode* node, Int16 depth) {
-    UInt16 i = 0;
+void fnode_print(FNode* node, int32_t depth) {
+    uint32_t i = 0;
 
     if (node == NULL) return;
 
@@ -363,24 +339,9 @@ void fnode_print(FNode* node, Int16 depth) {
 }
 
 
-FNode* fnode_getNodeFromPath(const char* path, Int16 maxDepth) {
-    char* normalizedPath = NULL;
-    FNode* node = NULL;
-
-    /* Copy the path to give us a working version of it */
-    normalizedPath = (char*)malloc(sizeof(char) * MAX_PATH_LENGTH);
-    if (normalizedPath == NULL) return NULL;
-    troot_safeStrCpy(normalizedPath, path, strlen(path) + 1);
-    
-
-    /* Normalize the path */
-    platform_normalizePath(normalizedPath);
-
-
+FNode* fnode_getNodeFromPath(const char* path, int32_t maxDepth) {
     /* Make the root parent from the provided path */
-    node = fnode_new(normalizedPath, NULL);
-    free(normalizedPath);
-    normalizedPath = NULL;
+    FNode* node = fnode_new(path, NULL);
 
     if (node == NULL) return NULL;
 
@@ -425,4 +386,3 @@ FNode* fnode_getNodeFromPath(const char* path, Int16 maxDepth) {
         node->childrenCapacity
     );
 }*/
-
